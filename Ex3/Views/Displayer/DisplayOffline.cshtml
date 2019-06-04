@@ -1,0 +1,123 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    body, html {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+    }
+
+    body {
+        background-image: url("/Map/map.png");
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-attachment: fixed;
+    }
+
+    canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+
+    .canvas-wrap {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
+<div class="canvas-wrap">
+    <canvas id="dotCvs"></canvas>
+    <canvas id="pathCvs"></canvas>
+</div>
+
+<script>
+    var intervalTime = 1000 / @Session["rate"];
+    var mainInterval = null;
+
+    var onlineController = (function () {
+        var lastBeforeCurrentPoint = { x: null, y: null};
+        var currentPoint = { x: null, y: null };
+        var leftSamplesNumber = @Session["SavedLocations"];
+
+        var pathCanvas = document.getElementById("pathCvs");
+        pathCanvas.width = window.innerWidth;
+        pathCanvas.height = window.innerHeight;
+        var pathContext = pathCanvas.getContext("2d");
+        pathContext.strokeStyle = "red";
+
+        var dotCanvas = document.getElementById("dotCvs");
+        dotCanvas.width = window.innerWidth;
+        dotCanvas.height = window.innerHeight;
+        var dotContex = dotCanvas.getContext("2d");
+
+        //get the new current location
+        function GetNewCurrentLocation() {
+            $.ajax({
+                type: "POST",
+                url: "@Url.Action("GetDataFromFile")",
+                async: false,
+                success: function (data) {
+                    var xmlDoc = $.parseXML(data),
+                        $xml = $(xmlDoc);
+                    lastBeforeCurrentPoint.x = currentPoint.x;
+                    lastBeforeCurrentPoint.y = currentPoint.y;
+                    currentPoint.x = (parseFloat($xml.find("lon").text()) + 180) * (window.innerWidth / 360);
+                    currentPoint.y = (parseFloat($xml.find("lat").text()) + 90) * (window.innerHeight / 180);
+                }
+            });
+        }
+        //drawing line from last location to current location
+        function DrawFromLastToCurrentLine() {
+            pathContext.moveTo(lastBeforeCurrentPoint.x, lastBeforeCurrentPoint.y);
+            pathContext.quadraticCurveTo(lastBeforeCurrentPoint.x, lastBeforeCurrentPoint.y, currentPoint.x, currentPoint.y);
+            pathContext.stroke();
+        }
+
+        //drawing circle
+        function DrawCicrle(color, position, size) {
+            dotContex.fillStyle = color;
+            dotContex.beginPath();
+            dotContex.arc(position.x, position.y, size, 0, 2 * Math.PI);
+            dotContex.fill();
+        }
+
+        //drawing current location
+        function DrawCurrentLocation() {
+            dotContex.clearRect(0, 0, dotCanvas.width, dotCanvas.height);
+            DrawCicrle("blue", currentPoint, 8);
+            DrawCicrle("red", currentPoint, 5);
+        }
+
+        function UpdateCanvas() {
+            GetNewCurrentLocation();
+
+            if (lastBeforeCurrentPoint.x != null) {
+                DrawFromLastToCurrentLine();
+            }
+            DrawCurrentLocation();
+
+            leftSamplesNumber -= 1;
+            if (leftSamplesNumber == 0) {
+                //send alert we finish show all flight samples in the file
+                setTimeout(function () { alert("Finish Senario, there are no more locations to show!") }, intervalTime)
+                clearInterval(mainInterval)
+            }
+        }
+
+        return {
+            UpdateCanvas: UpdateCanvas
+        };
+    })();
+
+    window.onload = function () {
+        //set interval
+        mainInterval = setInterval(onlineController.UpdateCanvas, intervalTime);
+    }
+
+</script>
