@@ -6,7 +6,7 @@ using System.Web;
 using System.Web.Mvc;
 using Ex3.Models;
 
-namespace Eex3.Controllers
+namespace Ex3.Controllers
 {
     public class SaverController : Controller
     {
